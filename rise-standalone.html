@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>RISE — Chapter Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!--
+  =====================================================================
+  SETUP REQUIRED — this file needs a free Firebase project to sync
+  the game between the big screen and everyone's phones. It will NOT
+  work until you fill in firebaseConfig below. See the setup guide
+  provided alongside this file for step-by-step instructions.
+  =====================================================================
+-->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --ink:#0c0a08; --panel:#161310; --panel-2:#1d1915;
+    --paper:#f4efe6; --paper-dim:#c9c2b5;
+    --ember:#d5652a; --ember-2:#e88248; --rule:#33291f;
+    --c-discipline:#3f6b5c; --c-accountability:#8a3b3b;
+    --c-integrity:#3a5a86; --c-compassion:#7a5a9c;
+    --c-honour:#b8862f; --c-forge:#d5652a;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;background:var(--ink);color:var(--paper);overscroll-behavior-y:none;}
+  body{font-family:'Inter',sans-serif;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);min-height:100%;display:flex;flex-direction:column;-webkit-text-size-adjust:100%;}
+  h1,h2,h3{font-family:'Bebas Neue',sans-serif;letter-spacing:0.03em;line-height:1;font-weight:400;}
+  button{font-family:'Inter',sans-serif;cursor:pointer;border:none;touch-action:manipulation;min-height:44px;}
+  input{touch-action:manipulation;font-size:16px;text-transform:none;}
+  .app{flex:1;display:flex;flex-direction:column;width:100%;padding:20px;}
+  .app.narrow{max-width:520px;margin:0 auto;}
+  .app.wide{max-width:1100px;margin:0 auto;}
+
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;gap:18px;}
+  .brand{font-family:'Bebas Neue';font-size:clamp(2.4rem,10vw,4rem);}
+  .brand span{color:var(--ember);}
+  .sub{color:var(--paper-dim);max-width:44ch;}
+  .setup-warning{background:#3a1f1a;border:1px solid #6b3a2c;color:#f4c9b8;padding:16px 20px;border-radius:8px;max-width:440px;font-size:0.88rem;text-align:left;}
+
+  .role-btns{display:flex;flex-direction:column;gap:14px;width:100%;max-width:340px;}
+  .role-btn{background:var(--panel);border:1px solid var(--rule);color:var(--paper);padding:22px;border-radius:12px;font-size:1.1rem;font-weight:700;}
+  .role-btn .emoji{font-size:1.8rem;display:block;margin-bottom:6px;}
+  .role-btn:hover{border-color:var(--ember);}
+
+  .field{width:100%;max-width:340px;}
+  .field input{width:100%;background:var(--panel);border:1px solid var(--rule);color:var(--paper);padding:14px 16px;border-radius:8px;margin-bottom:12px;}
+  .field input:focus{outline:none;border-color:var(--ember);}
+  .primary-btn{background:var(--ember);color:var(--ink);font-weight:700;padding:16px 22px;border-radius:8px;font-size:1rem;text-transform:uppercase;letter-spacing:0.04em;width:100%;max-width:340px;}
+  .primary-btn:disabled{opacity:0.4;}
+  .primary-btn:not(:disabled):hover{background:var(--ember-2);}
+
+  .room-code{font-family:'Bebas Neue';font-size:clamp(2.2rem,10vw,3.4rem);letter-spacing:0.1em;color:var(--ember-2);background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:14px 30px;}
+  .room-code-hint{font-size:0.8rem;color:var(--paper-dim);}
+
+  .lobby-list{width:100%;max-width:420px;display:flex;flex-direction:column;gap:8px;margin:8px 0 20px;}
+  .lobby-row{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:12px 16px;font-size:1rem;display:flex;justify-content:space-between;}
+  .lobby-empty{color:var(--paper-dim);font-size:0.9rem;font-style:italic;}
+
+  .host-turn{text-align:center;margin-bottom:26px;}
+  .host-turn .lbl{font-size:1rem;text-transform:uppercase;letter-spacing:0.15em;color:var(--paper-dim);}
+  .host-turn .name{font-family:'Bebas Neue';font-size:clamp(3rem,10vw,6rem);color:var(--ember-2);}
+  .host-zonetrack{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-bottom:30px;}
+  .zone-chip{font-size:1rem;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;padding:10px 18px;border-radius:24px;color:var(--ink);opacity:0.35;}
+  .zone-chip.current{opacity:1;box-shadow:0 0 0 3px var(--paper) inset;}
+  .zone-son{background:var(--c-discipline);} .zone-brother{background:var(--c-accountability);}
+  .zone-father{background:var(--c-honour);} .zone-rise{background:var(--c-integrity);} .zone-forge{background:var(--c-forge);}
+
+  .host-card{border-radius:18px;padding:44px 40px;color:var(--ink);text-align:center;margin:0 auto 30px;max-width:720px;min-height:180px;display:flex;flex-direction:column;justify-content:center;}
+  .host-card .cat{font-family:'Bebas Neue';font-size:2.2rem;margin-bottom:6px;}
+  .host-card .kind{font-size:0.85rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;opacity:0.7;margin-bottom:16px;}
+  .host-card .txt{font-size:clamp(1.3rem,3vw,1.9rem);font-weight:700;line-height:1.4;}
+  .host-waiting{text-align:center;color:var(--paper-dim);font-size:1.3rem;margin-bottom:30px;}
+
+  .host-scoreboard{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:auto;padding-top:24px;border-top:1px solid var(--rule);}
+  .host-sb-item{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:14px 22px;text-align:center;min-width:120px;}
+  .host-sb-item.active{border-color:var(--ember);}
+  .host-sb-name{font-size:0.95rem;font-weight:700;}
+  .host-sb-marks{font-family:'Bebas Neue';font-size:1.6rem;color:var(--ember-2);}
+
+  .p-status{text-align:center;color:var(--paper-dim);font-size:1rem;margin-bottom:16px;}
+  .p-turn-banner{text-align:center;font-family:'Bebas Neue';font-size:1.8rem;color:var(--ember-2);margin-bottom:8px;}
+  .die{width:78px;height:78px;border-radius:16px;background:var(--panel-2);border:1px solid var(--rule);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:2.2rem;margin:0 auto 16px;}
+  .die.rolling{animation:shake 0.5s ease;}
+  @keyframes shake{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-14deg);}75%{transform:rotate(14deg);}}
+  .roll-btn{background:var(--ember);color:var(--ink);font-weight:700;padding:16px 20px;border-radius:30px;font-size:1rem;text-transform:uppercase;letter-spacing:0.05em;width:100%;}
+  .roll-btn:disabled{opacity:0.35;}
+  .p-card{border-radius:12px;padding:22px 20px;margin:16px 0;color:var(--ink);}
+  .p-card .cat{font-family:'Bebas Neue';font-size:1.4rem;}
+  .p-card .kind{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;opacity:0.7;margin-bottom:10px;}
+  .p-card .txt{font-size:1.05rem;font-weight:600;line-height:1.4;}
+  .p-answer-btns{display:flex;gap:10px;flex-wrap:wrap;}
+  .p-answer-btns button{flex:1 1 120px;padding:14px 10px;border-radius:8px;font-size:0.85rem;font-weight:700;text-transform:uppercase;}
+  .btn-answered{background:var(--ember);color:var(--ink);}
+  .btn-pass{background:transparent;border:1px solid var(--rule);color:var(--paper-dim);}
+  .p-consequence{background:var(--panel-2);border:1px dashed var(--rule);border-radius:8px;padding:16px;margin:14px 0;}
+  .p-consequence p{margin:0 0 10px;font-size:0.88rem;color:var(--paper-dim);}
+  .opt-btn{background:var(--panel);border:1px solid var(--rule);color:var(--paper);padding:11px 14px;border-radius:20px;font-size:0.85rem;margin:4px 4px 0 0;}
+  .opt-btn:hover{border-color:var(--ember);}
+  .p-scoreboard{margin-top:20px;padding-top:14px;border-top:1px solid var(--rule);}
+  .p-sb-row{display:flex;justify-content:space-between;font-size:0.9rem;padding:8px 10px;border-radius:6px;background:var(--panel);margin-bottom:6px;}
+  .p-sb-row.active{outline:1px solid var(--ember);}
+
+  .end-title{font-size:clamp(2.2rem,10vw,3.4rem);text-align:center;margin:6px 0 8px;}
+  .final-row{display:flex;justify-content:space-between;align-items:center;background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:14px 18px;margin-bottom:10px;max-width:420px;width:100%;}
+  .final-row.winner{border-color:var(--ember);background:var(--panel-2);}
+  .final-marks{font-family:'Bebas Neue';font-size:1.5rem;color:var(--ember-2);}
+
+  .conn-dot{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:10px;width:9px;height:9px;border-radius:50%;background:#5a5148;}
+  .conn-dot.ok{background:#4caf50;}
+</style>
+</head>
+<body>
+<div class="conn-dot" id="connDot"></div>
+<div id="root"></div>
+
+<script>
+// =====================================================================
+// FILL THIS IN — get these values from your Firebase project's
+// "Project settings > General > Your apps > SDK setup and config".
+// See the setup guide for exact steps.
+// =====================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyB-MkdkxstjbTBNicueij9IN9H_o4aHMk4",
+  authDomain: "rise-game-4ee77.firebaseapp.com",
+  projectId: "rise-game-4ee77",
+  storageBucket: "rise-game-4ee77.firebasestorage.app",
+  messagingSenderId: "892599283891",
+  appId: "1:892599283891:web:f4d09a86d19854df7140c6",
+  measurementId: "G-GZE97SQTCG"
+};
+// =====================================================================
+
+const CONFIG_IS_FILLED = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE_");
+
+(function(){
+  // ---------------- game content ----------------
+  const DECKS = {
+    son: { label:"Son", value:"Discipline", cards:[
+      {kind:"Confess", txt:"Name one commitment to yourself you've broken more than once. What's the pattern?"},
+      {kind:"Act", txt:"Say out loud one thing you'll do this week, no matter what. The room holds you to it."},
+      {kind:"Reflect", txt:"What does discipline cost you that no one sees?"},
+      {kind:"Confess", txt:"When was the last time you showed up somewhere you didn't feel like showing up?"},
+      {kind:"Act", txt:"Give another man in the circle one standard you'll help him keep."},
+      {kind:"Reflect", txt:"What's a rule you follow that you've never questioned why?"},
+      {kind:"Activity", txt:"Pick a buddy. Both of you do 10 push-ups together, right now."},
+    ]},
+    brother: { label:"Brother", value:"Accountability", cards:[
+      {kind:"Confess", txt:"What's something you got wrong recently that you haven't admitted to anyone yet?"},
+      {kind:"Act", txt:"Apologise, right now, to someone in this circle for something small and real."},
+      {kind:"Reflect", txt:"Who calls you out when you slack — and do you let them?"},
+      {kind:"Confess", txt:"Tell the circle about a time loyalty cost you something."},
+      {kind:"Act", txt:"Ask one man here to hold you to something specific for the next 30 days."},
+      {kind:"Reflect", txt:"What's the difference between an excuse and a reason, in your own life right now?"},
+      {kind:"Activity", txt:"Pick a buddy. First to 15 sit-ups wins bragging rights for the week."},
+    ]},
+    father: { label:"Father", value:"Honour", cards:[
+      {kind:"Confess", txt:"What's a promise you're still trying to make right?"},
+      {kind:"Reflect", txt:"What do you want your name to mean to the people who carry it after you?"},
+      {kind:"Act", txt:"Give your word, out loud, on one thing you'll follow through on this month."},
+      {kind:"Confess", txt:"Whose respect matters more to you than you'd like to admit?"},
+      {kind:"Reflect", txt:"What's a family name, reputation, or legacy you're trying to live up to — or break from?"},
+      {kind:"Act", txt:"Tell the circle what 'showing up' looked like for the men who raised you — and whether you're repeating it."},
+      {kind:"Activity", txt:"Grab a buddy. Do 10 burpees together before the deck moves on."},
+    ]},
+    rise: { label:"Rise", value:"Integrity", cards:[
+      {kind:"Confess", txt:"What do you do differently when you know no one's watching?"},
+      {kind:"Reflect", txt:"Name a rule of your own you've never broken, even when it cost you."},
+      {kind:"Confess", txt:"What's a version of yourself you show at work that isn't the full truth?"},
+      {kind:"Act", txt:"Tell the group one thing about yourself you've never said in this room before."},
+      {kind:"Reflect", txt:"What would change about how you act if your son were always watching?"},
+      {kind:"Confess", txt:"When did you last do the harder right thing instead of the easier wrong one?"},
+      {kind:"Activity", txt:"Pick your workout partner for the week — shake on it now, then both do 10 squats."},
+    ]},
+  };
+  const COMPASSION_EXTRA = { label:"Compassion", value:"Compassion", cards:[
+    {kind:"Confess", txt:"Who have you been too hard on — including yourself — this year?"},
+    {kind:"Act", txt:"Say one true, kind thing to the man on your left."},
+    {kind:"Reflect", txt:"What does 'strength' actually look like in your house, day to day?"},
+    {kind:"Confess", txt:"When did someone show you mercy you didn't think you deserved?"},
+    {kind:"Reflect", txt:"Is it easier for you to give support or to ask for it? Why?"},
+    {kind:"Act", txt:"Name one man here you'd trust with something you're carrying right now."},
+    {kind:"Activity", txt:"Choose someone in the circle. Do a 30-second plank hold, side by side."},
+  ]};
+  const ALL_DECKS = Object.assign({}, DECKS, {compassion: COMPASSION_EXTRA});
+  const ZONE_ORDER = ["son","brother","father","rise"];
+  const ZONE_COLOR_VAR = { son:"var(--c-discipline)", brother:"var(--c-accountability)", father:"var(--c-honour)", rise:"var(--c-integrity)", forge:"var(--c-forge)" };
+
+  const PHYSICAL_CHALLENGES = [
+    { name:"Push-ups", unit:"reps", min:10, max:25 },
+    { name:"Sit-ups", unit:"reps", min:15, max:30 },
+    { name:"Squats", unit:"reps", min:15, max:30 },
+    { name:"Burpees", unit:"reps", min:8, max:15 },
+    { name:"Plank hold", unit:"seconds", min:30, max:60 },
+    { name:"Lunges (each leg)", unit:"reps", min:10, max:20 },
+    { name:"Mountain climbers", unit:"reps", min:20, max:40 },
+  ];
+  function rollChallenge(){
+    const c = PHYSICAL_CHALLENGES[Math.floor(Math.random()*PHYSICAL_CHALLENGES.length)];
+    return { name:c.name, unit:c.unit, amount: c.min + Math.floor(Math.random()*(c.max-c.min+1)) };
+  }
+  function zoneKeyFromIdx(idx){ return idx===4 ? 'forge' : ZONE_ORDER[idx]; }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
+
+  const root = document.getElementById('root');
+  const connDot = document.getElementById('connDot');
+
+  if(!CONFIG_IS_FILLED){
+    root.innerHTML = '';
+    const wrap = el('<div class="app narrow"><div class="center"></div></div>');
+    const c = wrap.querySelector('.center');
+    c.appendChild(el('<div class="brand">R<span>I</span>SE</div>'));
+    c.appendChild(el('<div class="setup-warning"><b>Setup needed.</b> This file needs a free Firebase project before it can sync between devices. Open this file in a text editor, find the <code>firebaseConfig</code> block near the top of the &lt;script&gt;, and paste in your project\'s config values. See the setup guide provided alongside this file.</div>'));
+    root.appendChild(wrap);
+    return;
+  }
+
+  firebase.initializeApp(firebaseConfig);
+  const fdb = firebase.firestore();
+
+  function myId(){
+    let id = localStorage.getItem('rise_player_id');
+    if(!id){ id = 'p_' + Math.random().toString(36).slice(2,10); localStorage.setItem('rise_player_id', id); }
+    return id;
+  }
+
+  let mode = null;
+  let roomCode = null;
+  let playerName = null;
+  let joined = false;
+  let state = null;
+  let unsub = null;
+
+  function docRef(code){ return fdb.collection('rise_sessions').doc(code); }
+
+  function subscribe(code){
+    if(unsub) unsub();
+    unsub = docRef(code).onSnapshot(
+      (snap)=>{ state = snap.exists ? snap.data() : null; connDot.classList.add('ok'); render(); },
+      (err)=>{ connDot.classList.remove('ok'); console.error(err); }
+    );
+  }
+
+  async function writeState(next){ await docRef(roomCode).set(next); }
+
+  function render(){
+    root.innerHTML = '';
+    if(!mode){ root.appendChild(renderRoleChoice()); return; }
+    if(mode === 'host') root.appendChild(renderHost());
+    if(mode === 'player') root.appendChild(renderPlayer());
+  }
+
+  function renderRoleChoice(){
+    const wrap = el('<div class="app narrow"><div class="center"></div></div>');
+    const c = wrap.querySelector('.center');
+    c.appendChild(el('<div class="brand">R<span>I</span>SE</div>'));
+    c.appendChild(el('<div class="sub">A circle game for chapter meetings. One device is the big screen, everyone else plays from their phone.</div>'));
+    const btns = el('<div class="role-btns"></div>');
+    const hostBtn = el('<button class="role-btn"><span class="emoji">📺</span>Display on this screen</button>');
+    const playerBtn = el('<button class="role-btn"><span class="emoji">📱</span>I\'m a player</button>');
+    hostBtn.addEventListener('click', async ()=>{
+      roomCode = Math.random().toString(36).slice(2,6).toUpperCase();
+      mode = 'host';
+      await writeState({phase:'lobby', lobby:[], players:[], current:0, stage:'awaiting_roll', card:null, challenge:null});
+      subscribe(roomCode);
+      render();
+    });
+    playerBtn.addEventListener('click', ()=>{ mode='player'; render(); });
+    btns.appendChild(hostBtn); btns.appendChild(playerBtn);
+    c.appendChild(btns);
+    return wrap;
+  }
+
+  // ================= HOST =================
+  function renderHost(){
+    if(!state) return el('<div class="app narrow"><div class="center"><div class="sub">Connecting…</div></div></div>');
+    if(state.phase === 'playing') return renderHostPlay();
+    if(state.phase === 'ended') return renderHostEnd();
+    return renderHostLobby();
+  }
+
+  function renderHostLobby(){
+    const wrap = el('<div class="app wide"><div class="center"></div></div>');
+    const c = wrap.querySelector('.center');
+    c.appendChild(el('<div class="brand">R<span>I</span>SE</div>'));
+    const codeBox = el('<div class="room-code"></div>');
+    codeBox.textContent = roomCode;
+    c.appendChild(codeBox);
+    c.appendChild(el('<div class="room-code-hint">Players enter this code on their own phone to join.</div>'));
+    const list = el('<div class="lobby-list"></div>');
+    const lobby = state.lobby || [];
+    if(lobby.length === 0){
+      list.appendChild(el('<div class="lobby-empty">Waiting for players to join…</div>'));
+    } else {
+      lobby.forEach(p=> list.appendChild(el('<div class="lobby-row"><span>'+escapeHtml(p.name)+'</span><span>✓</span></div>')));
+    }
+    c.appendChild(list);
+    const startBtn = el('<button class="primary-btn">Start the Circle</button>');
+    startBtn.disabled = lobby.length < 2;
+    startBtn.addEventListener('click', startGame);
+    c.appendChild(startBtn);
+    return wrap;
+  }
+
+  async function startGame(){
+    const lobby = state.lobby || [];
+    if(lobby.length < 2) return;
+    const players = lobby.map(p => ({ id:p.id, name:p.name, marks:0, zoneIdx:-1, laps:0, passUsed:false, finished:false }));
+    await writeState({ phase:'playing', lobby, players, current:0, stage:'awaiting_roll', card:null, challenge:null });
+  }
+
+  function renderHostPlay(){
+    const wrap = el('<div class="app wide"></div>');
+    const p = state.players[state.current];
+    const turn = el('<div class="host-turn"><div class="lbl">Now playing</div><div class="name"></div></div>');
+    turn.querySelector('.name').textContent = p.name;
+    wrap.appendChild(turn);
+
+    const track = el('<div class="host-zonetrack"></div>');
+    ZONE_ORDER.forEach((z,i)=>{
+      const chip = el('<div class="zone-chip zone-'+z+'"></div>');
+      chip.textContent = DECKS[z].label;
+      if(p.zoneIdx === i) chip.classList.add('current');
+      track.appendChild(chip);
+    });
+    const forgeChip = el('<div class="zone-chip zone-forge">Forge</div>');
+    if(p.zoneIdx === 4) forgeChip.classList.add('current');
+    track.appendChild(forgeChip);
+    wrap.appendChild(track);
+
+    if(state.card && state.stage !== 'awaiting_roll'){
+      const zKey = state.card.zoneKey;
+      const colorVar = zKey === 'forge' ? ZONE_COLOR_VAR.forge : ZONE_COLOR_VAR[zKey];
+      const card = el('<div class="host-card"><div class="cat"></div><div class="kind"></div><div class="txt"></div></div>');
+      card.style.background = colorVar;
+      card.querySelector('.cat').textContent = state.card.value + (zKey==='forge' ? ' · The Forge' : '');
+      card.querySelector('.kind').textContent = state.card.kind;
+      card.querySelector('.txt').textContent = state.card.txt;
+      wrap.appendChild(card);
+    } else {
+      wrap.appendChild(el('<div class="host-waiting">Waiting for '+escapeHtml(p.name)+' to roll…</div>'));
+    }
+
+    const sb = el('<div class="host-scoreboard"></div>');
+    state.players.forEach((pl,i)=>{
+      const item = el('<div class="host-sb-item"><div class="host-sb-name"></div><div class="host-sb-marks"></div></div>');
+      item.querySelector('.host-sb-name').textContent = pl.name;
+      item.querySelector('.host-sb-marks').textContent = pl.marks;
+      if(i === state.current) item.classList.add('active');
+      sb.appendChild(item);
+    });
+    wrap.appendChild(sb);
+    return wrap;
+  }
+
+  function renderHostEnd(){
+    const wrap = el('<div class="app narrow"><div class="center"></div></div>');
+    const c = wrap.querySelector('.center');
+    c.appendChild(el('<div class="end-title">Circle complete</div>'));
+    const sorted = [...state.players].sort((a,b)=>b.marks-a.marks);
+    const top = sorted[0] ? sorted[0].marks : 0;
+    sorted.forEach(p=>{
+      const row = el('<div class="final-row"><span></span><span class="final-marks"></span></div>');
+      row.querySelector('span').textContent = p.name;
+      row.querySelector('.final-marks').textContent = p.marks;
+      if(p.marks === top) row.classList.add('winner');
+      c.appendChild(row);
+    });
+    const again = el('<button class="primary-btn">Play again</button>');
+    again.addEventListener('click', ()=> writeState({phase:'lobby', lobby: state.lobby, players:[], current:0, stage:'awaiting_roll', card:null, challenge:null}));
+    c.appendChild(again);
+    return wrap;
+  }
+
+  // ================= PLAYER =================
+  function renderPlayer(){
+    if(!joined) return renderPlayerJoin();
+    if(!state) return el('<div class="app narrow"><div class="center"><div class="sub">Connecting…</div></div></div>');
+    if(state.phase === 'playing') return renderPlayerPlay();
+    if(state.phase === 'ended') return renderPlayerEnd();
+    return renderPlayerLobby();
+  }
+
+  function renderPlayerJoin(){
+    const wrap = el('<div class="app narrow"><div class="center"></div></div>');
+    const c = wrap.querySelector('.center');
+    c.appendChild(el('<div class="brand">R<span>I</span>SE</div>'));
+    c.appendChild(el('<div class="sub">Enter the room code shown on the big screen, and your name.</div>'));
+    const field = el('<div class="field"><input type="text" maxlength="6" placeholder="Room code" style="text-transform:uppercase;"><input type="text" maxlength="24" placeholder="Your name"></div>');
+    const codeInput = field.children[0], nameInput = field.children[1];
+    c.appendChild(field);
+    const joinBtn = el('<button class="primary-btn">Join</button>');
+    joinBtn.addEventListener('click', async ()=>{
+      const code = codeInput.value.trim().toUpperCase();
+      const name = nameInput.value.trim();
+      if(!code || !name){ (code ? nameInput : codeInput).focus(); return; }
+      const ref = docRef(code);
+      const snap = await ref.get();
+      if(!snap.exists){ alert('No game found with that code — check it and try again.'); return; }
+      roomCode = code;
+      playerName = name;
+      const data = snap.data();
+      const lobby = (data.lobby || []).filter(p => p.id !== myId());
+      lobby.push({ id: myId(), name });
+      await ref.update({ lobby });
+      subscribe(code);
+      joined = true;
+      render();
+    });
+    c.appendChild(joinBtn);
+    return wrap;
+  }
+
+  function renderPlayerLobby(){
+    const wrap = el('<div class="app narrow"><div class="center"></div></div>');
+    const c = wrap.querySelector('.center');
+    c.appendChild(el('<div class="brand">R<span>I</span>SE</div>'));
+    c.appendChild(el('<div class="p-status">You\'re in as <b>'+escapeHtml(playerName)+'</b>. Waiting for the host to start…</div>'));
+    const list = el('<div class="lobby-list"></div>');
+    (state.lobby || []).forEach(p=>{
+      list.appendChild(el('<div class="lobby-row"><span>'+escapeHtml(p.name)+(p.id===myId()?' (you)':'')+'</span><span>✓</span></div>'));
+    });
+    c.appendChild(list);
+    return wrap;
+  }
+
+  function myPlayerIndex(){
+    if(!state || !state.players) return -1;
+    return state.players.findIndex(p => p.id === myId());
+  }
+
+  let pendingKeeperPick = false;
+
+  function renderPlayerPlay(){
+    const idx = myPlayerIndex();
+    const wrap = el('<div class="app narrow"></div>');
+    if(idx === -1){
+      wrap.appendChild(el('<div class="p-status">This round already started without you — sit tight for the next game.</div>'));
+      return wrap;
+    }
+    const isMyTurn = state.current === idx;
+    const active = state.players[state.current];
+
+    if(!isMyTurn){
+      wrap.appendChild(el('<div class="p-turn-banner">'+escapeHtml(active.name)+'\'s turn</div>'));
+      wrap.appendChild(el('<div class="p-status">Watch the big screen.</div>'));
+    } else {
+      wrap.appendChild(el('<div class="p-turn-banner">Your turn</div>'));
+
+      if(state.stage === 'awaiting_roll'){
+        const die = el('<div class="die">?</div>');
+        wrap.appendChild(die);
+        const rollBtn = el('<button class="roll-btn">Roll the die</button>');
+        rollBtn.addEventListener('click', ()=> doRoll(die, rollBtn));
+        wrap.appendChild(rollBtn);
+      }
+
+      if(state.card && (state.stage==='awaiting_response' || state.stage==='awaiting_consequence' || state.stage==='awaiting_challenge')){
+        const zKey = state.card.zoneKey;
+        const colorVar = zKey === 'forge' ? ZONE_COLOR_VAR.forge : ZONE_COLOR_VAR[zKey];
+        const card = el('<div class="p-card"><div class="cat"></div><div class="kind"></div><div class="txt"></div></div>');
+        card.style.background = colorVar;
+        card.querySelector('.cat').textContent = state.card.value + (zKey==='forge' ? ' · Forge' : '');
+        card.querySelector('.kind').textContent = state.card.kind;
+        card.querySelector('.txt').textContent = state.card.txt;
+        wrap.appendChild(card);
+      }
+
+      if(state.stage === 'awaiting_response'){
+        const isActivity = state.card.kind === 'Activity';
+        const btns = el('<div class="p-answer-btns"></div>');
+        const ansBtn = el('<button class="btn-answered"></button>');
+        ansBtn.textContent = isActivity ? 'Done — +1 Mark' : 'Answered — +1 Mark';
+        ansBtn.addEventListener('click', doAnswered);
+        const passBtn = el('<button class="btn-pass"></button>');
+        passBtn.textContent = isActivity ? 'Skip this one' : "Can't answer";
+        passBtn.addEventListener('click', doCantAnswer);
+        btns.appendChild(ansBtn); btns.appendChild(passBtn);
+        wrap.appendChild(btns);
+      }
+
+      if(state.stage === 'awaiting_consequence'){
+        const box = el('<div class="p-consequence"><p>Pick your consequence:</p></div>');
+        const chBtn = el('<button class="opt-btn">💪 Physical challenge</button>');
+        chBtn.addEventListener('click', doPickChallenge);
+        const kpBtn = el('<button class="opt-btn">🤝 Brother\'s Keeper answers</button>');
+        kpBtn.addEventListener('click', ()=>{ pendingKeeperPick = true; render(); });
+        box.appendChild(chBtn); box.appendChild(kpBtn);
+        wrap.appendChild(box);
+        if(pendingKeeperPick){
+          const kbox = el('<div class="p-consequence"><p>Who\'s stepping in?</p></div>');
+          state.players.forEach((pl,i)=>{
+            if(i === idx) return;
+            const b = el('<button class="opt-btn"></button>');
+            b.textContent = pl.name;
+            b.addEventListener('click', ()=> doKeeperPick(i));
+            kbox.appendChild(b);
+          });
+          wrap.appendChild(kbox);
+        }
+      }
+
+      if(state.stage === 'awaiting_challenge' && state.challenge){
+        const box = el('<div class="p-consequence"></div>');
+        box.appendChild(el('<p><b style="color:var(--paper);">'+state.challenge.amount+' '+state.challenge.unit+' — '+state.challenge.name+'</b>, right now, in front of the circle.</p>'));
+        const doneBtn = el('<button class="primary-btn">Done — +1 Mark</button>');
+        doneBtn.addEventListener('click', doChallengeDone);
+        box.appendChild(doneBtn);
+        wrap.appendChild(box);
+      }
+    }
+
+    const sb = el('<div class="p-scoreboard"></div>');
+    state.players.forEach((pl,i)=>{
+      const row = el('<div class="p-sb-row"><span></span><span></span></div>');
+      row.children[0].textContent = pl.name + (i===idx?' (you)':'');
+      row.children[1].textContent = pl.marks;
+      if(i === state.current) row.classList.add('active');
+      sb.appendChild(row);
+    });
+    wrap.appendChild(sb);
+    return wrap;
+  }
+
+  function renderPlayerEnd(){
+    const wrap = el('<div class="app narrow"><div class="center"></div></div>');
+    const c = wrap.querySelector('.center');
+    c.appendChild(el('<div class="end-title">Circle complete</div>'));
+    const sorted = [...state.players].sort((a,b)=>b.marks-a.marks);
+    const top = sorted[0] ? sorted[0].marks : 0;
+    sorted.forEach(p=>{
+      const row = el('<div class="final-row"><span></span><span class="final-marks"></span></div>');
+      row.querySelector('span').textContent = p.name;
+      row.querySelector('.final-marks').textContent = p.marks;
+      if(p.marks === top) row.classList.add('winner');
+      c.appendChild(row);
+    });
+    c.appendChild(el('<div class="p-status">Waiting for the host to start a new round…</div>'));
+    return wrap;
+  }
+
+  function cloneState(){ return JSON.parse(JSON.stringify(state)); }
+
+  function doRoll(dieEl, btnEl){
+    btnEl.disabled = true;
+    dieEl.classList.add('rolling');
+    let ticks = 0;
+    const timer = setInterval(()=>{
+      dieEl.textContent = String(1+Math.floor(Math.random()*6));
+      ticks++;
+      if(ticks > 8){ clearInterval(timer); finishRoll(1+Math.floor(Math.random()*6)); }
+    }, 60);
+  }
+
+  async function finishRoll(roll){
+    const draft = cloneState();
+    const idx = state.current;
+    const p = draft.players[idx];
+    if(roll === 6){ p.zoneIdx = 4; }
+    else { p.zoneIdx = (p.zoneIdx === -1) ? 0 : (p.zoneIdx+1) % 4; }
+    const zKey = zoneKeyFromIdx(p.zoneIdx);
+    let deckKey = zKey, value;
+    if(zKey === 'forge'){
+      const pool = ['son','brother','father','rise','compassion'];
+      deckKey = pool[Math.floor(Math.random()*pool.length)];
+      value = ALL_DECKS[deckKey].value;
+    } else { value = ALL_DECKS[zKey].value; }
+    const deck = ALL_DECKS[deckKey].cards;
+    const card = deck[Math.floor(Math.random()*deck.length)];
+    draft.card = { zoneKey: zKey, deckKey, value, kind: card.kind, txt: card.txt };
+    draft.stage = 'awaiting_response';
+    await writeState(draft);
+  }
+
+  async function doAnswered(){
+    const draft = cloneState();
+    draft.players[state.current].marks += (draft.card && draft.card.zoneKey === 'forge' ? 2 : 1);
+    advanceTurnDraft(draft);
+    await writeState(draft);
+  }
+  function doCantAnswer(){ const draft = cloneState(); draft.stage='awaiting_consequence'; pendingKeeperPick=false; writeState(draft); }
+  function doPickChallenge(){ const draft = cloneState(); draft.players[state.current].passUsed=true; draft.challenge=rollChallenge(); draft.stage='awaiting_challenge'; writeState(draft); }
+  async function doChallengeDone(){ const draft = cloneState(); draft.players[state.current].marks += 1; advanceTurnDraft(draft); await writeState(draft); }
+  async function doKeeperPick(otherIdx){
+    const draft = cloneState();
+    draft.players[state.current].passUsed = true;
+    draft.players[otherIdx].marks += 1;
+    pendingKeeperPick = false;
+    advanceTurnDraft(draft);
+    await writeState(draft);
+  }
+
+  function advanceTurnDraft(draft){
+    const idx = draft.current;
+    const p = draft.players[idx];
+    if(ZONE_ORDER[p.zoneIdx] === 'rise'){ p.laps += 1; if(p.laps >= 1) p.finished = true; }
+    if(draft.players.every(pl=>pl.finished)){ draft.phase='ended'; draft.card=null; draft.challenge=null; return; }
+    let next = idx, loops=0;
+    do{ next = (next+1) % draft.players.length; loops++; } while(draft.players[next].finished && loops <= draft.players.length);
+    draft.current = next; draft.stage='awaiting_roll'; draft.card=null; draft.challenge=null;
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
