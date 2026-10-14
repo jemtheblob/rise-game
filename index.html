@@ -122,6 +122,26 @@
 
   .conn-dot{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:10px;width:9px;height:9px;border-radius:50%;background:#5a5148;}
   .conn-dot.ok{background:#4caf50;}
+
+  /* ---------- Rules overlay ---------- */
+  .rules-fab{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:10px;z-index:50;background:var(--panel);border:1px solid var(--rule);color:var(--paper-dim);border-radius:20px;padding:0 14px;min-height:36px;font-size:0.8rem;font-weight:700;letter-spacing:0.04em;}
+  .rules-fab:hover{border-color:var(--ember);color:var(--paper);}
+  .rules-overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.78);display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:calc(20px + env(safe-area-inset-top,0px)) 16px calc(20px + env(safe-area-inset-bottom,0px));}
+  .rules-overlay.open{display:flex;}
+  .rules-panel{background:var(--panel);border:1px solid var(--rule);border-radius:14px;max-width:640px;width:100%;padding:26px 24px 30px;}
+  .rules-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .rules-head h2{font-size:2.2rem;margin:0;}
+  .rules-close{background:transparent;border:1px solid var(--rule);color:var(--paper-dim);border-radius:20px;padding:0 14px;font-size:0.8rem;font-weight:700;}
+  .rules-close:hover{border-color:var(--paper-dim);color:var(--paper);}
+  .rules-intro{color:var(--paper-dim);font-size:0.95rem;margin:0 0 18px;}
+  .rules-panel h3{font-size:1.35rem;color:var(--ember-2);margin:22px 0 8px;}
+  .rules-panel p,.rules-panel li{font-size:0.95rem;line-height:1.55;color:var(--paper);}
+  .rules-panel ul,.rules-panel ol{margin:6px 0 0;padding-left:20px;}
+  .rules-panel li{margin-bottom:6px;}
+  .rules-panel li b{color:var(--ember-2);}
+  .rules-note{background:var(--panel-2);border-left:3px solid var(--ember);padding:12px 16px;border-radius:0 6px 6px 0;margin-top:12px;font-size:0.9rem;}
+  .zone-dots{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;}
+  .zone-dots span{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink);padding:5px 12px;border-radius:14px;}
 </style>
 </head>
 <body>
@@ -673,6 +693,90 @@ const CONFIG_IS_FILLED = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsW
   }
 
   render();
+})();
+</script>
+
+<script>
+(function(){
+  var RULES_HTML = `
+    <div class="rules-head"><h2>How to play RISE</h2><button class="rules-close" id="rulesClose">Close</button></div>
+    <p class="rules-intro">A 15–30 minute circle game for chapter meetings. One screen is the board; everyone plays from their phone. The goal isn't to beat anyone. It's to get a room of men saying something true.</p>
+
+    <h3>Getting started</h3>
+    <ol>
+      <li>One person opens the page on the big screen and taps <b>Display on this screen</b>. A 4-character room code appears.</li>
+      <li>Everyone else opens the same page on their phone, taps <b>I'm a player</b>, and enters the room code and their name.</li>
+      <li>When at least 2 players have joined, the host taps <b>Start the Circle</b>.</li>
+    </ol>
+
+    <h3>On your turn</h3>
+    <ol>
+      <li><b>Roll the die</b> on your phone. A 1–5 moves you to your next zone. A 6 sends you to <b>The Forge</b>.</li>
+      <li>A card is drawn for that zone and shows on the big screen and on your phone.</li>
+      <li>Read it out loud and answer it honestly, or do the activity.</li>
+      <li>Tap <b>Answered</b> (or <b>Done</b> for an Activity card). That sends it to the host. It does not score yet.</li>
+    </ol>
+
+    <h3>The zones</h3>
+    <div class="zone-dots">
+      <span style="background:var(--c-discipline)">Son · Discipline</span>
+      <span style="background:var(--c-accountability)">Brother · Accountability</span>
+      <span style="background:var(--c-honour)">Father · Honour</span>
+      <span style="background:var(--c-integrity)">Rise · Integrity</span>
+      <span style="background:var(--c-forge)">The Forge · Wildcard</span>
+    </div>
+    <p>The Forge draws from any deck, including Compassion, and is worth <b style="color:var(--ember-2)">double marks</b>.</p>
+
+    <h3>Card types</h3>
+    <ul>
+      <li><b>Confess</b> — admit something true.</li>
+      <li><b>Reflect</b> — think out loud about a question.</li>
+      <li><b>Act</b> — say or do something right now in front of the group.</li>
+      <li><b>Activity</b> — a physical task, often with a buddy you pick (push-ups, sit-ups, burpees, planks).</li>
+    </ul>
+
+    <h3>Can't answer?</h3>
+    <p>Tap <b>Can't answer</b> (or <b>Skip this one</b> on an Activity card) and choose one:</p>
+    <ul>
+      <li><b>Physical challenge</b> — you get a random exercise and rep count. Do it in front of the circle, then tap <b>Done</b>.</li>
+      <li><b>Brother's Keeper answers</b> — pick another player to step in and answer a lighter version of the question for you.</li>
+    </ul>
+
+    <h3>Marks of Honour</h3>
+    <p><b style="color:var(--ember-2)">Only the host awards marks.</b> After you submit, the host sees an award button for every player. A mark is worth +1, or +2 in The Forge. The host can give it to you, to your Brother's Keeper, or to anyone else who earned it, or skip it if nobody did. Awarding or skipping moves play to the next person.</p>
+
+    <h3>How it ends</h3>
+    <p>You finish your lap once you've been through the Rise zone. When every player has finished, the game ends and the final Marks of Honour are shown. The host can tap <b>Play again</b> to start a new round.</p>
+
+    <h3>House rules</h3>
+    <ul>
+      <li><b>Be real.</b> No deflecting with a joke as your whole answer.</li>
+      <li><b>No one gets cornered.</b> Passing is always allowed. You'll just do a challenge or hand it to a Brother's Keeper.</li>
+      <li><b>What's said in the circle stays in the circle.</b></li>
+      <li><b>Hold each other to it.</b> If you give your word, the room remembers.</li>
+    </ul>
+    <div class="rules-note">Tip for the host: go first and answer deeply. How honest the first answer is sets the level for the whole session.</div>
+  `;
+
+  var fab = document.createElement('button');
+  fab.className = 'rules-fab';
+  fab.textContent = '? Rules';
+  fab.setAttribute('aria-label','How to play');
+
+  var overlay = document.createElement('div');
+  overlay.className = 'rules-overlay';
+  overlay.innerHTML = '<div class="rules-panel" role="dialog" aria-modal="true" aria-label="How to play">' + RULES_HTML + '</div>';
+
+  function open(){ overlay.classList.add('open'); overlay.scrollTop = 0; }
+  function close(){ overlay.classList.remove('open'); }
+
+  fab.addEventListener('click', open);
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) close(); });
+  overlay.querySelector('#rulesClose').addEventListener('click', close);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') close(); });
+
+  document.body.appendChild(fab);
+  document.body.appendChild(overlay);
 })();
 </script>
 </body>
