@@ -142,6 +142,38 @@
   .rules-note{background:var(--panel-2);border-left:3px solid var(--ember);padding:12px 16px;border-radius:0 6px 6px 0;margin-top:12px;font-size:0.9rem;}
   .zone-dots{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;}
   .zone-dots span{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink);padding:5px 12px;border-radius:14px;}
+
+  /* ---------- Question editor ---------- */
+  .edit-q-btn{background:transparent;border:1px solid var(--rule);color:var(--paper-dim);border-radius:8px;padding:12px 18px;font-size:0.9rem;font-weight:600;width:100%;max-width:340px;}
+  .edit-q-btn:hover{border-color:var(--ember);color:var(--paper);}
+  .qe-overlay{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,0.82);overflow-y:auto;padding:calc(16px + env(safe-area-inset-top,0px)) 14px calc(16px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;align-items:flex-start;}
+  .qe-panel{background:var(--panel);border:1px solid var(--rule);border-radius:14px;width:100%;max-width:820px;padding:22px 20px 24px;}
+  .qe-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .qe-head h2{font-size:2rem;margin:0;}
+  .qe-intro{color:var(--paper-dim);font-size:0.9rem;margin:0 0 14px;}
+  .qe-ghost{background:transparent;border:1px solid var(--rule);color:var(--paper-dim);border-radius:20px;padding:0 14px;font-size:0.8rem;font-weight:600;min-height:38px;}
+  .qe-ghost:hover{border-color:var(--paper-dim);color:var(--paper);}
+  .qe-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;}
+  .qe-tab{flex:0 0 auto;background:var(--panel-2);border:1px solid var(--rule);color:var(--paper-dim);border-radius:10px;padding:8px 14px;text-align:left;line-height:1.2;}
+  .qe-tab b{display:block;font-size:0.9rem;color:var(--paper);}
+  .qe-tab span{font-size:0.72rem;}
+  .qe-tab.active{border-color:var(--ember);}
+  .qe-hint{background:var(--panel-2);border-left:3px solid var(--ember);padding:10px 14px;border-radius:0 6px 6px 0;font-size:0.85rem;color:var(--paper-dim);margin-bottom:10px;}
+  .qe-list{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;}
+  .qe-row{display:flex;gap:10px;align-items:stretch;}
+  .qe-left{display:flex;flex-direction:column;gap:6px;flex:0 0 104px;}
+  .qe-row select{background:var(--panel-2);color:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:0 8px;font-size:16px;min-height:44px;}
+  .qe-row textarea{flex:1;background:var(--panel-2);color:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-family:'Inter',sans-serif;font-size:16px;line-height:1.4;resize:vertical;min-height:88px;}
+  .qe-row textarea:focus,.qe-row select:focus{outline:none;border-color:var(--ember);}
+  .qe-del{background:transparent;border:1px solid var(--rule);color:var(--paper-dim);border-radius:8px;font-size:1.3rem;line-height:1;min-height:38px;}
+  .qe-del:hover{border-color:#b04a3a;color:#e88a78;}
+  .qe-add{background:transparent;border:1px dashed var(--rule);color:var(--ember-2);border-radius:8px;width:100%;font-weight:700;font-size:0.9rem;min-height:46px;margin-bottom:16px;}
+  .qe-add:hover{border-color:var(--ember);}
+  .qe-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--rule);padding-top:14px;}
+  .qe-ghosts{display:flex;gap:8px;flex-wrap:wrap;}
+  .qe-save{background:var(--ember);color:var(--ink);font-weight:700;border-radius:8px;padding:0 24px;font-size:0.95rem;min-height:46px;text-transform:uppercase;letter-spacing:0.04em;}
+  .qe-save:hover{background:var(--ember-2);}
+  @media (max-width:520px){ .qe-left{flex:0 0 88px;} }
 </style>
 </head>
 <body>
@@ -217,6 +249,35 @@ const CONFIG_IS_FILLED = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsW
     {kind:"Activity", txt:"Choose someone in the circle. Do a 30-second plank hold, side by side."},
   ]};
   const ALL_DECKS = Object.assign({}, DECKS, {compassion: COMPASSION_EXTRA});
+
+  // ---------- host-editable questions ----------
+  const DECK_KEYS = ['son','brother','father','rise','compassion'];
+  const CARD_KINDS = ['Confess','Reflect','Act','Activity'];
+  const DEFAULT_CARDS = {};
+  DECK_KEYS.forEach(k => { DEFAULT_CARDS[k] = ALL_DECKS[k].cards.map(c => ({kind:c.kind, txt:c.txt})); });
+
+  function cleanDecks(raw){
+    if(!raw || typeof raw !== 'object') return null;
+    const out = {};
+    let any = false;
+    DECK_KEYS.forEach(k => {
+      const arr = Array.isArray(raw[k]) ? raw[k] : null;
+      if(!arr) return;
+      const cards = arr
+        .map(c => ({ kind: CARD_KINDS.indexOf(c && c.kind) >= 0 ? c.kind : 'Reflect', txt: String((c && c.txt) || '').trim() }))
+        .filter(c => c.txt);
+      if(cards.length){ out[k] = cards; any = true; }
+    });
+    return any ? out : null;
+  }
+  function loadSavedDecks(){
+    try{ return cleanDecks(JSON.parse(localStorage.getItem('rise_custom_decks') || 'null')); }
+    catch(e){ return null; }
+  }
+  function getActiveCards(deckKey){
+    const custom = state && state.decks && state.decks[deckKey];
+    return (custom && custom.length) ? custom : DEFAULT_CARDS[deckKey];
+  }
   const ZONE_ORDER = ["son","brother","father","rise"];
   const ZONE_COLOR_VAR = { son:"var(--c-discipline)", brother:"var(--c-accountability)", father:"var(--c-honour)", rise:"var(--c-integrity)", forge:"var(--c-forge)" };
 
@@ -296,7 +357,7 @@ const CONFIG_IS_FILLED = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsW
     hostBtn.addEventListener('click', async ()=>{
       roomCode = Math.random().toString(36).slice(2,6).toUpperCase();
       mode = 'host';
-      await writeState({phase:'lobby', lobby:[], players:[], current:0, stage:'awaiting_roll', card:null, challenge:null});
+      await writeState({phase:'lobby', lobby:[], players:[], current:0, stage:'awaiting_roll', card:null, challenge:null, decks: loadSavedDecks()});
       subscribe(roomCode);
       render();
     });
@@ -330,6 +391,10 @@ const CONFIG_IS_FILLED = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsW
       lobby.forEach(p=> list.appendChild(el('<div class="lobby-row"><span>'+escapeHtml(p.name)+'</span><span>✓</span></div>')));
     }
     c.appendChild(list);
+    const editBtn = el('<button class="edit-q-btn">✏️ Edit questions</button>');
+    editBtn.addEventListener('click', openDeckEditor);
+    c.appendChild(editBtn);
+    if(state.decks) c.appendChild(el('<div class="room-code-hint" style="margin-top:-6px;">Using your custom questions.</div>'));
     const startBtn = el('<button class="primary-btn">Start the Circle</button>');
     startBtn.disabled = lobby.length < 2;
     startBtn.addEventListener('click', startGame);
@@ -337,11 +402,124 @@ const CONFIG_IS_FILLED = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsW
     return wrap;
   }
 
+  // ---------- question editor (host, lobby only) ----------
+  let editorEl = null;
+  function openDeckEditor(){
+    if(editorEl) return;
+    const work = {};
+    DECK_KEYS.forEach(k => {
+      const src = (state && state.decks && state.decks[k] && state.decks[k].length) ? state.decks[k] : DEFAULT_CARDS[k];
+      work[k] = src.map(c => ({kind:c.kind, txt:c.txt}));
+    });
+    let tab = DECK_KEYS[0];
+
+    editorEl = document.createElement('div');
+    editorEl.className = 'qe-overlay';
+    document.body.appendChild(editorEl);
+
+    function tabTitle(k){ return k === 'compassion' ? 'Compassion' : ALL_DECKS[k].label; }
+    function tabSub(k){ return k === 'compassion' ? 'Forge only' : ALL_DECKS[k].value; }
+
+    function draw(){
+      editorEl.innerHTML = '';
+      const panel = document.createElement('div'); panel.className = 'qe-panel';
+
+      const head = document.createElement('div'); head.className = 'qe-head';
+      head.innerHTML = '<h2>Edit questions</h2>';
+      const cancelTop = document.createElement('button'); cancelTop.className = 'qe-ghost'; cancelTop.textContent = 'Cancel';
+      cancelTop.addEventListener('click', close);
+      head.appendChild(cancelTop);
+      panel.appendChild(head);
+
+      const intro = document.createElement('p'); intro.className = 'qe-intro';
+      intro.textContent = 'Changes apply to this game and are remembered on this device for next time. Each zone needs at least one question.';
+      panel.appendChild(intro);
+
+      const tabs = document.createElement('div'); tabs.className = 'qe-tabs';
+      DECK_KEYS.forEach(k => {
+        const b = document.createElement('button');
+        b.className = 'qe-tab' + (k === tab ? ' active' : '');
+        b.innerHTML = '<b></b><span></span>';
+        b.querySelector('b').textContent = tabTitle(k);
+        b.querySelector('span').textContent = tabSub(k) + ' · ' + work[k].length;
+        b.addEventListener('click', ()=>{ tab = k; draw(); });
+        tabs.appendChild(b);
+      });
+      panel.appendChild(tabs);
+
+      if(tab === 'compassion'){
+        const hint = document.createElement('div'); hint.className = 'qe-hint';
+        hint.textContent = 'Compassion questions only come up when someone lands on The Forge.';
+        panel.appendChild(hint);
+      }
+
+      const list = document.createElement('div'); list.className = 'qe-list';
+      work[tab].forEach((card, i) => {
+        const row = document.createElement('div'); row.className = 'qe-row';
+        const sel = document.createElement('select');
+        CARD_KINDS.forEach(kd => { const o = document.createElement('option'); o.value = kd; o.textContent = kd; if(kd === card.kind) o.selected = true; sel.appendChild(o); });
+        sel.addEventListener('change', ()=>{ card.kind = sel.value; });
+        const ta = document.createElement('textarea'); ta.rows = 2; ta.value = card.txt; ta.placeholder = 'Type a question or activity…';
+        ta.addEventListener('input', ()=>{ card.txt = ta.value; });
+        const del = document.createElement('button'); del.className = 'qe-del'; del.textContent = '×'; del.setAttribute('aria-label','Delete question');
+        del.addEventListener('click', ()=>{ work[tab].splice(i,1); draw(); });
+        const left = document.createElement('div'); left.className = 'qe-left';
+        left.appendChild(sel); left.appendChild(del);
+        row.appendChild(left); row.appendChild(ta);
+        list.appendChild(row);
+      });
+      panel.appendChild(list);
+
+      const add = document.createElement('button'); add.className = 'qe-add'; add.textContent = '+ Add a question';
+      add.addEventListener('click', ()=>{ work[tab].push({kind:'Reflect', txt:''}); draw(); const tas = editorEl.querySelectorAll('textarea'); if(tas.length) tas[tas.length-1].focus(); });
+      panel.appendChild(add);
+
+      const foot = document.createElement('div'); foot.className = 'qe-foot';
+      const resetTab = document.createElement('button'); resetTab.className = 'qe-ghost'; resetTab.textContent = 'Reset this zone';
+      resetTab.addEventListener('click', ()=>{ work[tab] = DEFAULT_CARDS[tab].map(c => ({kind:c.kind, txt:c.txt})); draw(); });
+      const resetAll = document.createElement('button'); resetAll.className = 'qe-ghost'; resetAll.textContent = 'Reset all to defaults';
+      resetAll.addEventListener('click', ()=>{ if(confirm('Reset every zone to the original questions?')){ DECK_KEYS.forEach(k => { work[k] = DEFAULT_CARDS[k].map(c => ({kind:c.kind, txt:c.txt})); }); draw(); } });
+      const save = document.createElement('button'); save.className = 'qe-save'; save.textContent = 'Save questions';
+      save.addEventListener('click', saveAll);
+      const ghosts = document.createElement('div'); ghosts.className = 'qe-ghosts';
+      ghosts.appendChild(resetTab); ghosts.appendChild(resetAll);
+      foot.appendChild(ghosts); foot.appendChild(save);
+      panel.appendChild(foot);
+
+      editorEl.appendChild(panel);
+    }
+
+    async function saveAll(){
+      const decks = {};
+      for(const k of DECK_KEYS){
+        const cards = work[k].map(c => ({kind:c.kind, txt:String(c.txt||'').trim()})).filter(c => c.txt);
+        if(!cards.length){
+          alert('The ' + tabTitle(k) + ' zone has no questions. Add at least one, or use "Reset this zone".');
+          tab = k; draw(); return;
+        }
+        decks[k] = cards;
+      }
+      try{ localStorage.setItem('rise_custom_decks', JSON.stringify(decks)); }catch(e){}
+      try{
+        await docRef(roomCode).update({ decks });
+      }catch(err){
+        alert('Could not save the questions to the game: ' + (err && err.message ? err.message : err));
+        return;
+      }
+      close();
+    }
+
+    function close(){
+      if(editorEl){ editorEl.remove(); editorEl = null; }
+    }
+    draw();
+  }
+
   async function startGame(){
     const lobby = state.lobby || [];
     if(lobby.length < 2) return;
     const players = lobby.map(p => ({ id:p.id, name:p.name, marks:0, zoneIdx:-1, laps:0, passUsed:false, finished:false }));
-    await writeState({ phase:'playing', lobby, players, current:0, stage:'awaiting_roll', card:null, challenge:null, awardTarget:null, awardAmount:null, awardReason:null });
+    await writeState({ phase:'playing', lobby, players, current:0, stage:'awaiting_roll', card:null, challenge:null, awardTarget:null, awardAmount:null, awardReason:null, decks: state.decks || null });
   }
 
   function renderHostPlay(){
@@ -426,7 +604,7 @@ const CONFIG_IS_FILLED = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsW
       c.appendChild(row);
     });
     const again = el('<button class="primary-btn">Play again</button>');
-    again.addEventListener('click', ()=> writeState({phase:'lobby', lobby: state.lobby, players:[], current:0, stage:'awaiting_roll', card:null, challenge:null, awardTarget:null, awardAmount:null, awardReason:null}));
+    again.addEventListener('click', ()=> writeState({phase:'lobby', lobby: state.lobby, players:[], current:0, stage:'awaiting_roll', card:null, challenge:null, awardTarget:null, awardAmount:null, awardReason:null, decks: state.decks || null}));
     c.appendChild(again);
     return wrap;
   }
@@ -628,7 +806,7 @@ const CONFIG_IS_FILLED = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsW
       deckKey = pool[Math.floor(Math.random()*pool.length)];
       value = ALL_DECKS[deckKey].value;
     } else { value = ALL_DECKS[zKey].value; }
-    const deck = ALL_DECKS[deckKey].cards;
+    const deck = getActiveCards(deckKey);
     const card = deck[Math.floor(Math.random()*deck.length)];
     draft.card = { zoneKey: zKey, deckKey, value, kind: card.kind, txt: card.txt };
     draft.stage = 'awaiting_response';
